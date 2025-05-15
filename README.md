@@ -1,4 +1,4 @@
-## Codes for Brain-Environment Cross-Attention (BECA).
+## Codes for BrainMoE.
 
 The official implementation of paper "BrainMoE: Cognition Joint Embedding via Mixture-of-Expert Towards Robust Brain Foundation Model". Pre-trained model weights can be found here [https://drive.google.com/drive/folders/1Gc5SmsQMaNZHxi8W6LBnU7mYQXhbi_ok?usp=sharing](https://drive.google.com/drive/folders/1Gc5SmsQMaNZHxi8W6LBnU7mYQXhbi_ok?usp=sharing).
 

@@ -1,0 +1,8 @@
+*.log
+*.png
+*.jpg
+*.svg
+nohup.out
+model_weights/
+data/
+__pycache__/

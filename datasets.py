@@ -31,6 +31,7 @@ DATAROOT = {
     'neurocon': '/ram/USERS/bendan/ACMLab_DATA/All_Dataset/neurocon/neurocon',
     'taowu': '/ram/USERS/bendan/ACMLab_DATA/All_Dataset/taowu/taowu',
     'sz-diana': '/ram/USERS/ziquanw/data/SZ_data_Schezophrannia_Diana_Jefferies',
+    'fmrieeg': '/ram/USERS/ziquanw/brain_moe/data/fmrieeg-Shaefer_400',
 }
 DATANAME = {
     'adni': 'ADNI_BOLD_SC',
@@ -760,6 +761,123 @@ class Dataset_SZ(Dataset):
                 data['y'] = self.label_remap[data['y']]
         return data
 
+
+class Dataset_FMRIEEG(Dataset):
+    def __init__(self, atlas_name='Shaefer_400', # multi-atlas not available 
+                 dname='fmrieeg',
+                transform = [],
+                transform_tag = [],
+                # node_attr = 'FC', adj_type = 'FC',
+                # transform = None,
+                # fc_winsize = 137, # not implement
+                # fc_winoverlap = 0, # not implement
+                # fc_th = 0.5,
+                # sc_th = 0.1, **kargs
+                ):
+        super(Dataset_FMRIEEG, self).__init__()
+        # self.adj_type = adj_type
+        self.transform = transform
+        self.transform_tag = transform_tag
+        # self.transform = transform
+        # self.node_attr = node_attr
+        self.atlas_name = atlas_name
+        # self.fc_th = fc_th
+        # self.sc_th = sc_th
+        # self.fc_winsize = fc_winsize
+        self.node_num = 400
+        self.label_remap = None
+        self.root_dir = DATAROOT[dname]
+        self.dname = dname
+        self.data = []
+        self.labels = []
+        self.data_path = []
+        self.subject = []
+        self.eeg_path = []
+        self.label_names = ['task-checker', 'task-dme', 'task-dmh', 'task-inscapes', 'task-monkey', 'task-peer', 'task-rest', 'task-tp']
+        
+        # data_dir = f'{dname}-{atlas_name}'
+        # os.makedirs(f'data/{data_dir}', exist_ok=True)
+        for fn in os.listdir(self.root_dir+'/BOLD'):
+        
+            file_path = os.path.join(self.root_dir+'/BOLD', fn)
+            self.data_path.append(file_path)
+            label, label_name = self.get_label(fn)
+            self.labels.append(label)
+            self.subject.append(fn.split('_')[0])
+            self.eeg_path.append(file_path.replace('BOLD', 'EEG').replace('bold.tsv', 'eeg.npy'))
+
+        self.cached_data = [None for _ in range(len(self.data_path))]
+        self.data_subj = np.unique(self.subject)
+        if os.path.exists(f'/ram/USERS/ziquanw/data/meta_data/{dname.upper()}_metadata.csv'):
+            meta_data = pd.read_csv(f'/ram/USERS/ziquanw/data/meta_data/{dname.upper()}_metadata.csv')
+            self.subj2sex = {
+                subj: np.unique(meta_data[meta_data['Subject']==subj]['Sex']).item()
+            for subj in self.data_subj if subj in list(meta_data['Subject'])}
+            self.sex_label = {'Male': 0, 'Female': 1}
+            self.subj2sex = {k: self.sex_label[v] for k, v in self.subj2sex.items()}
+            self.subj2age = {
+                subj: torch.tensor(np.unique(meta_data[meta_data['Subject']==subj]['Age']).item()).float().reshape(1)
+            for subj in self.data_subj if subj in list(meta_data['Subject'])}
+            # if len(self.subj2age) > 0:
+            #     self.age_max = np.max(list(self.subj2age.values()))
+            #     self.age_min = np.min(list(self.subj2age.values()))
+            #     self.subj2age = {k: (v-self.age_min)/(self.age_max-self.age_min) for k, v in self.subj2age.items()}
+        else:
+            self.subj2sex = {}
+            self.subj2age = {}
+
+        self.nclass_list = [len(self.label_names)]
+        self.expert_embeds = [0 for _ in range(len(self))]
+        print("Data num", len(self), "Label name", self.label_names)
+            
+    def get_label(self, fn):
+        labeln = fn.split('_')[2]
+        if 'monkey' in labeln: labeln = 'task-monkey'
+        return self.label_names.index(labeln), labeln
+        
+        
+    def __len__(self):
+        return len(self.cached_data)
+    
+    def __getitem__(self, index):
+        # label = self.labels[index]
+        # data = (features - torch.mean(features, axis=0, keepdims=True)) / torch.std(features, axis=0, keepdims=True)
+        if self.cached_data[index] is None:
+            features = np.loadtxt(self.data_path[index], delimiter='\t') # N x T
+            features = torch.from_numpy(features).float()
+            x = torch.nan_to_num(features)
+            x = torch.corrcoef(x)
+            subjn = self.subject[index]
+            eeg = np.load(self.eeg_path[index])
+            eeg = torch.from_numpy(eeg).float()
+            eeg = torch.nan_to_num(eeg)
+        
+            x[x.isnan()] = 0
+            x[x.isinf()] = 0
+            data = {
+                # 'edge_index': edge_index,
+                'eeg': eeg,
+                'x': x,
+                'y': self.labels[index],
+                'sex': self.subj2sex[subjn] if subjn in self.subj2sex else -1,
+                'age': self.subj2age[subjn] if subjn in self.subj2age else torch.tensor([-1]).float(),
+                # 'edge_index_fc': edge_index_fc,
+                # 'edge_index_sc': edge_index_sc
+            }
+            
+            self.cached_data[index] = data
+        data = self.cached_data[index]
+        for t, tn in zip(self.transform, self.transform_tag):
+            data[tn] = t(data)
+        # data['expert_embed'] = self.expert_embeds[index]
+        if self.expert_embeds[index] != 0:
+            data['expert_embed'] = self.expert_embeds[index]
+        if self.label_remap is not None:
+            if data['y'] in self.label_remap:
+                data['y'] = self.label_remap[data['y']]
+        return data
+
+
 DATASET_CLASS = {
     'adni': NeuroNetworkDataset,
     'oasis': NeuroNetworkDataset,
@@ -771,6 +889,7 @@ DATASET_CLASS = {
     'neurocon': Dataset_PPMI_ABIDE,
     'taowu': Dataset_PPMI_ABIDE,
     'sz-diana': Dataset_SZ,
+    'fmrieeg': Dataset_FMRIEEG,
 }
 np.random.seed(142857)
 def cv_dataloader_generator(batch_size=4, num_workers=8, nfold=0, total_fold={'adni': 5,'hcpa': 5,'hcpya': 5,'abide': 10,'ppmi': 10,'taowu': 10,'neurocon': 10, 'sz-diana': 10}, few_shot=1, dataset=None, **kargs):
@@ -801,7 +920,7 @@ def cv_dataloader_generator(batch_size=4, num_workers=8, nfold=0, total_fold={'a
     return train_loader, loader, dataset
 
 
-def cv_dataloader_generator_precompute_expert(batch_size=4, num_workers=8, nfold=0, total_fold={'adni': 5,'hcpa': 5,'hcpya': 5,'abide': 10,'ppmi': 10,'taowu': 10,'neurocon': 10, 'sz-diana': 10}, dataset=None, experts=[], expert_tags=[], device='cpu', **kargs):
+def cv_dataloader_generator_precompute_expert(batch_size=4, num_workers=8, nfold=0, total_fold={'adni': 5,'hcpa': 5,'hcpya': 5,'abide': 10,'ppmi': 10,'taowu': 10,'neurocon': 10, 'sz-diana': 10, 'fmrieeg': 5}, dataset=None, experts=[], expert_tags=[], device='cpu', **kargs):
     kf = KFold(n_splits=total_fold[kargs['dname']], shuffle=True, random_state=142857)
     # if os.path.exists(f'data/{""}')
     if dataset is None:
@@ -811,10 +930,13 @@ def cv_dataloader_generator_precompute_expert(batch_size=4, num_workers=8, nfold
         for data in tqdm(dloader, desc='Precompute Expert Embedding'):
             expert_embed = []
             for experti in range(len(experts)):
-                if expert_tags[experti].split('_')[0] not in ['BrainMass', 'BrainJEPA']:
-                    x = data['x']
-                else:
+                if expert_tags[experti].split('_')[0] in ['BrainMass', 'BrainJEPA']:
                     x = data[expert_tags[experti].split('_')[0]][0]
+                elif expert_tags[experti].split('_')[0] in ['EEG']:
+                    x = data['eeg']
+                else:
+                    x = data['x']
+                    
                 with torch.no_grad():
                     y = experts[experti](x.to(device))
                     if isinstance(y, dict): y=y['hidden_state'][:,0]

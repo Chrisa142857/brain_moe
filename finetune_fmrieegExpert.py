@@ -8,6 +8,7 @@ from brain_jepa_models import EvalTransformation as BrainJEPA_tform
 from brain_mass_models import BNTF as BrainMass_expert
 from brain_mass_models import EvalTransformation as BrainMass_tform
 from cbramod_models import CBraMod
+from einops.layers.torch import Rearrange
 
 # from models.heads import Classifier, BNDecoder
 # from torch_geometric.nn import GCNConv, GATConv, SAGEConv, SGConv
@@ -67,6 +68,7 @@ DATA_CLASS_N = {
     'neurocon': 2,
     'taowu': 2,
     'sz-diana': 2,
+    'fmrieeg': 8,
 }
 LOSS_FUNCS = {
     'y': nn.CrossEntropyLoss(),
@@ -84,10 +86,10 @@ torch.manual_seed(42)
 def main():
     parser = argparse.ArgumentParser(description='BrainMoE')
     
-    parser.add_argument('--dataname', type=str, default = 'ppmi')
+    parser.add_argument('--dataname', type=str, default = 'fmrieeg')
     parser.add_argument('--nlayer', type=int, default = 32)
     parser.add_argument('--nhead', type=int, default = 8)
-    parser.add_argument('--device', type=str, default = 'cuda:0')
+    parser.add_argument('--device', type=str, default = 'cuda:3')
     
     parser.add_argument('--batch_size', type=int, default=32,
                         help='Input batch size for training (default: 32)')
@@ -96,20 +98,22 @@ def main():
     parser.add_argument('--max_patience', type=int, default = 50)
     parser.add_argument('--hiddim', type=int, default = 1024)
     parser.add_argument('--lr', type=float, default = 0.0001)
-    parser.add_argument('--expert_atlas', nargs='+', default = ['AAL_116'], required=False)
-    parser.add_argument('--atlas', nargs='+', default = 'AAL_116', required=False)
+    parser.add_argument('--expert_atlas', nargs='+', default = ['Shaefer_400'], required=False)
+    parser.add_argument('--atlas', nargs='+', default = 'Shaefer_400', required=False)
     parser.add_argument('--savemodel', action='store_true')
     parser.add_argument('--decay', type=float, default=0,
                         help='Weight decay (default: 0)')
     parser.add_argument('--decoder_layer', type=int, default = 4)
     parser.add_argument('--decoder_head', type=int, default = 4)
     parser.add_argument('--decoder_hiddim', type=int, default = 1024)
-    parser.add_argument('--train_obj', type=str, default = 'y')
+    parser.add_argument('--train_obj', type=str, default = 'age')
     parser.add_argument('--few_shot', type=float, default = 1)
     parser.add_argument('--force_2class', action='store_true')
     parser.add_argument('--nofreeze_expert', action='store_true')
     parser.add_argument('--use_pseudolabel', action='store_true')
     parser.add_argument('--single_expert', action='store_true')
+    parser.add_argument('--nofmri', action='store_true')
+    parser.add_argument('--noeeg', action='store_true')
     parser.add_argument('--topk_expert', type=int, default = -1)
     args = parser.parse_args()
     print(args)
@@ -119,8 +123,10 @@ def main():
     hiddim = args.hiddim
     target = args.train_obj
     nclass = DATA_CLASS_N[args.dataname]
-    if args.force_2class:
+    if args.force_2class or target == 'sex':
         nclass = 2
+    if target == 'age':
+        nclass = 1
     dataset = None
     # Initialize lists to store evaluation metrics
     accuracies_dict = {}
@@ -156,27 +162,30 @@ def main():
         'neurocon': 10,
         'taowu': 10,
         'sz-diana': 10,
+        'fmrieeg': 5,
     }
 
     weight_dir = 'model_weights'
     expert_tags = []
-    weight_path = []
-    for expert_dir in os.listdir(weight_dir):
-        if f'{args.model}_param' not in expert_dir: continue
-        expert_fns = os.listdir(f'{weight_dir}/{expert_dir}')
-        expert_fns = [fn for fn in expert_fns if '_'.join(fn.split('_')[-3:-1]) in args.expert_atlas]
-        if args.single_expert: expert_fns = [fn for fn in expert_fns if 'task-rest_AAL_116' in fn]
-        if len(expert_fns) == 0: continue
-        expert_tags += [fn.replace('BrainExpert_', '').replace('_best.pt', '') for fn in expert_fns]
-        weight_path += [f'{weight_dir}/{expert_dir}/{fn}' for fn in expert_fns]
-    print('Loading experts', expert_tags)
-    classif_experts = MODEL_BANK[args.model](expert_tag=expert_tags, nlayer=args.decoder_layer, head_num=args.decoder_head, hid_dim=args.decoder_hiddim).to(device)
-    for experti in range(len(classif_experts.experts)):
-        classif_experts.experts[experti].load_state_dict(torch.load(weight_path[experti], map_location='cpu', weights_only=True))
     experts = []
-    classif_experts.eval()
-    for expert in classif_experts.experts:
-        experts.append(expert)
+    if not args.nofmri:
+        weight_path = []
+        for expert_dir in os.listdir(weight_dir):
+            if f'{args.model}_param' not in expert_dir: continue
+            expert_fns = os.listdir(f'{weight_dir}/{expert_dir}')
+            expert_fns = [fn for fn in expert_fns if '_'.join(fn.split('_')[-3:-1]) in args.expert_atlas]
+            if args.single_expert: expert_fns = [fn for fn in expert_fns if 'task-rest_AAL_116' in fn] # single expert only AAL_116
+            if len(expert_fns) == 0: continue
+            expert_tags += [fn.replace('BrainExpert_', '').replace('_best.pt', '') for fn in expert_fns]
+            weight_path += [f'{weight_dir}/{expert_dir}/{fn}' for fn in expert_fns]
+        print('Loading experts', expert_tags)
+        classif_experts = MODEL_BANK[args.model](expert_tag=expert_tags, nlayer=args.decoder_layer, head_num=args.decoder_head, hid_dim=args.decoder_hiddim).to(device)
+        for experti in range(len(classif_experts.experts)):
+            classif_experts.experts[experti].load_state_dict(torch.load(weight_path[experti], map_location='cpu', weights_only=True))
+        
+        classif_experts.eval()
+        for expert in classif_experts.experts:
+            experts.append(expert)
     # expert_param = []
     # if not args.nofreeze_expert:
     #     classif_experts.eval()
@@ -185,87 +194,59 @@ def main():
         # for expert in classif_experts.experts:
         #     expert_param.extend(list(expert.parameters()))
 
-    config_path = '/ram/USERS/ziquanw/BrainMass/config/normal_sch1.yaml'
-    config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
-    feature_size = config['network']['feature_dim']
-    depth = config['network']['depth']
-    heads = config['network']['heads']
-    dim_feedforward = config['network']['dim_feedforward']
-    roi_num = config['network']['roi_num']
-    mask_way=config['data']['mask_way']
-    mask_len=int(config['data']['time_mask'])
-    time_len=int(config['data']['time_len'])
-    weight_dir = '/ram/USERS/ziquanw/BrainMass/checkpoints/checkpoints_brainmoe_170kdataset_AAL_116'
-    expert_fns = [fn for fn in list(os.listdir(weight_dir)) if fn.endswith('best_model.pth')]
-    expert_fns = [fn for fn in expert_fns if '_'.join(fn.split('_')[-4:-2]) in args.expert_atlas]
-    if args.single_expert: expert_fns = [fn for fn in expert_fns if 'task-rest_AAL_116' in fn]
-    assert len(expert_fns) > 0
-    expert_tags.extend(['BrainMass_'+fn.replace('brainExpert_', '').replace('_best_model.pth', '') for fn in expert_fns])
-    weight_path = [f'{weight_dir}/{fn}' for fn in expert_fns]
-    for chpt_path in weight_path:
-        expert = BrainMass_expert(feature_size,depth,heads,dim_feedforward,roi_num).to(device)
-        load_params = torch.load(chpt_path, map_location='cpu')['online_network_state_dict']
-        expert.load_state_dict(load_params)
-        expert.eval()
-        experts.append(expert)
+    # config_path = '/ram/USERS/ziquanw/BrainMass/config/normal_sch1.yaml'
+    # config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
+    # feature_size = config['network']['feature_dim']
+    # depth = config['network']['depth']
+    # heads = config['network']['heads']
+    # dim_feedforward = config['network']['dim_feedforward']
+    # roi_num = config['network']['roi_num']
+    # mask_way=config['data']['mask_way']
+    # mask_len=int(config['data']['time_mask'])
+    # time_len=int(config['data']['time_len'])
+    # weight_dir = '/ram/USERS/ziquanw/BrainMass/checkpoints/checkpoints_brainmoe_170kdataset_AAL_116'
+    # expert_fns = [fn for fn in list(os.listdir(weight_dir)) if fn.endswith('best_model.pth')]
+    # expert_fns = [fn for fn in expert_fns if '_'.join(fn.split('_')[-4:-2]) in args.expert_atlas]
+    # if args.single_expert: expert_fns = [fn for fn in expert_fns if 'task-rest_AAL_116' in fn]
+    # assert len(expert_fns) > 0
+    # expert_tags.extend(['BrainMass_'+fn.replace('brainExpert_', '').replace('_best_model.pth', '') for fn in expert_fns])
+    # weight_path = [f'{weight_dir}/{fn}' for fn in expert_fns]
+    # for chpt_path in weight_path:
+    #     expert = BrainMass_expert(feature_size,depth,heads,dim_feedforward,roi_num).to(device)
+    #     load_params = torch.load(chpt_path, map_location='cpu')['online_network_state_dict']
+    #     expert.load_state_dict(load_params)
+    #     expert.eval()
+    #     experts.append(expert)
 
-    expert_dir = '/ram/USERS/ziquanw/Brain-JEPA/logs/moe_vitb_ep200_aal_250411-230316'
-    expert_fns = [fn for fn in list(os.listdir(expert_dir)) if fn.endswith('AAL_116_latest.pth.tar')]
-    assert len(expert_fns) > 0
-    expert_tags.extend(['BrainJEPA_'+fn.replace('brainExpert_', '').replace('_best_model.pth', '') for fn in expert_fns])
-    weight_path = [f'{expert_dir}/{fn}' for fn in expert_fns]
-    # loadedi = 0
-    for chpt_path in weight_path:
-        # if loadedi>=2: break
-        # loadedi += 1
-        expert = BrainJEPA_expert(model_name='vit_base', attn_mode='normal', num_classes=nclass, global_pool=True, device=device, add_w='mapping')
-        checkpoint = torch.load(chpt_path, map_location='cpu')
-        print("Load pre-trained checkpoint from: %s" % chpt_path)
-        checkpoint_model = checkpoint['target_encoder']
-        state_dict = expert.state_dict()
-        
-        new_checkpoint_model = {}
-        for key in checkpoint_model.keys():
-            if 'module.' not in key:
-                new_key = 'encoder.'+key
-            else:
-                new_key = key.replace('module.', 'encoder.')  # Remove 'module.' from each key
-            new_checkpoint_model[new_key] = checkpoint_model[key]
-
-        for k in ['head.weight', 'head.bias']:
-            if k in new_checkpoint_model and new_checkpoint_model[k].shape != state_dict[k].shape:
-                print(f"Removing key {k} from pretrained checkpoint")
-                del new_checkpoint_model[k]
-
-        # load pre-trained model
-        new_checkpoint_model['encoder.pos_embed_proj.emb_w'] = new_checkpoint_model['encoder.pos_embed_proj.emb_h']
-        msg = expert.load_state_dict(new_checkpoint_model, strict=False)
+    if not args.noeeg:
+        chpt_path = '/ram/USERS/ziquanw/CBraMod/pretrained_weights/pretrained_weights.pth'
+        expert = CBraMod()
+        msg = expert.load_state_dict(torch.load(chpt_path, map_location='cpu'))
+        expert.proj_out = Rearrange('b c s p -> b (c s p)')
+        expert.hid_dim = 22*4*200
         print(msg)
-
-
-        # manually initialize fc layer
-        # trunc_normal_(expert.head.weight, std=2e-5)
         expert.to(device)
         expert.eval()
         experts.append(expert)
+        expert_tags.append('EEG_CBraMod')
 
 
     print('Loaded experts', expert_tags)
     transform = []
     transform_name = []
-    brainMass_tform = BrainMass_tform(classn=nclass, mask_way=mask_way,mask_len=mask_len,time_len=time_len,target=target,is_train=True,is_test=False, roi_num=roi_num, return_dict=True)
-    transform.append(brainMass_tform)
-    transform_name.append('BrainMass')
-    brainjepa_tform = BrainJEPA_tform(target=target, crop_size=[116,160], use_normalization=True, downsample=True)
-    transform.append(brainjepa_tform)
-    transform_name.append('BrainJEPA')
+    # brainMass_tform = BrainMass_tform(classn=nclass, mask_way=mask_way,mask_len=mask_len,time_len=time_len,target=target,is_train=True,is_test=False, roi_num=roi_num, return_dict=True)
+    # transform.append(brainMass_tform)
+    # transform_name.append('BrainMass')
+    # brainjepa_tform = BrainJEPA_tform(target=target, crop_size=[116,160], use_normalization=True, downsample=True)
+    # transform.append(brainjepa_tform)
+    # transform_name.append('BrainJEPA')
 
     # foldi = 0
     # _foldi = 0
     # for foldi in range(5):
     # while foldi < 5 and _foldi < _nfold[args.dataname]:
     #     _foldi += 1
-    for foldi in range(_nfold[args.dataname]):
+    for foldi in range(1, _nfold[args.dataname]):
         train_loader, val_loader, dataset = cv_dataloader_generator_precompute_expert(batch_size=args.batch_size, nfold=foldi, dataset=dataset, experts=experts, expert_tags=expert_tags, device=device,
                                                                  dname=args.dataname, atlas_name=args.atlas, transform=transform, transform_tag=transform_name)
 
@@ -528,7 +509,8 @@ def eval(model, experts, device, loader, args):
             auc_score = auc(fpr, tpr)
             scores['y'] = [acc, prec, rec, f1, auc_score]
         else:
-            scores[k] = [-1, -1, -1, torch.nn.functional.mse_loss(y_scores, y_true)]    
+            r2 = torch.corrcoef(torch.stack([y_scores, y_true]))[0, 1].abs()
+            scores[k] = [-1, -1, -1, torch.nn.functional.mse_loss(y_scores, y_true), r2]    
 
     return scores
 

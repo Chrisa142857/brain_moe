@@ -22,7 +22,7 @@ class VisionTransformerEval(nn.Module):
     def __init__(self, model_name='vit_base', attn_mode='flash_attn', global_pool=False, add_w=False, device=None, norm_layer=partial(nn.LayerNorm, eps=1e-6), embed_dim=None, num_classes=2):
         super(VisionTransformerEval, self).__init__()
         
-        gradient_csv_path = '/ram/USERS/ziquanw/Brain-JEPA/data/gradient_mapping_116_moe.csv'#args.gradient_path#'data/gradient_mapping_450.csv'
+        gradient_csv_path = '../Brain-JEPA/data/gradient_mapping_116_moe.csv'#args.gradient_path#'data/gradient_mapping_450.csv'
         def load_gradient():
             df = pd.read_csv(gradient_csv_path, header=None)
             gradient = torch.tensor(df.values, dtype=torch.float32)

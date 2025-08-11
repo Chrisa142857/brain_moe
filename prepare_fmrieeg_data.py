@@ -71,11 +71,11 @@ def sample_eeg_data(filepath, target_shape=(22, 4, 200)):
     # 
     return sampled_data
 
-root = '/ram/USERS/ziquanw/data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/'
+root = '../data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/' # download from https://fcon_1000.projects.nitrc.org/indi/retro/nat_view.html
 saveroot = 'data/fmrieeg-Shaefer_400'
 fmri_task2fn = {}
 
-for f in glob.glob('/ram/USERS/ziquanw/data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/*/*/func/*/func_atlas/*400parcels7networks_desc-sm0_bold.tsv'):
+for f in glob.glob('../data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/*/*/func/*/func_atlas/*400parcels7networks_desc-sm0_bold.tsv'):
     items = f.split('/')[-1].split('_')[2:4]
     if 'run' not in items[-1]: items = items[:-1]
     label = '_'.join(items)
@@ -83,7 +83,7 @@ for f in glob.glob('/ram/USERS/ziquanw/data/NATVIEW_EEGFMRI/projects/EEG_FMRI/da
     fmri_task2fn[label].append(f)
 
 eeg_task2fn = {}
-for f in glob.glob('/ram/USERS/ziquanw/data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/*/*/eeg/*eeg.set'):
+for f in glob.glob('../data/NATVIEW_EEGFMRI/projects/EEG_FMRI/data_indi_preproc/*/*/eeg/*eeg.set'):
     items = f.split('/')[-1].split('_')[2:4]
     if 'run' not in items[-1]: items = items[:-1]
     label = '_'.join(items)

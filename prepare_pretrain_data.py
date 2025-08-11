@@ -9,16 +9,16 @@ from multiprocessing import Pool
 ATLAS_FACTORY = ['AAL_116', 'Aicha_384', 'Gordon_333', 'Brainnetome_264', 'Shaefer_100', 'Shaefer_200', 'Shaefer_400', 'D_160']
 BOLD_FORMAT = ['.csv', '.csv', '.tsv', '.csv', '.tsv', '.tsv', '.tsv', '.txt']
 DATAROOT = {
-    'adni': '/ram/USERS/ziquanw/detour_hcp/data',
-    # 'oasis': '/ram/USERS/ziquanw/detour_hcp/data',
-    'hcpa': '/ram/USERS/bendan/ACMLab_DATA',
-    'ukb': '/ram/USERS/ziquanw/data',
-    'hcpya': '/ram/USERS/bendan/ACMLab_DATA',
-    'ppmi': '/ram/USERS/jiaqi/benchmark_fmri/data/PPMI',
-    'abide': '/ram/USERS/jiaqi/benchmark_fmri/data/ABIDE',
-    'neurocon': '/ram/USERS/bendan/ACMLab_DATA/All_Dataset/neurocon/neurocon',
-    'taowu': '/ram/USERS/bendan/ACMLab_DATA/All_Dataset/taowu/taowu',
-    'sz-diana': '/ram/USERS/ziquanw/data/SZ_data_Schezophrannia_Diana_Jefferies',
+    'adni': '../detour_hcp/data',
+    # 'oasis': '../detour_hcp/data',
+    'hcpa': '../ACMLab_DATA',
+    'ukb': '../data',
+    'hcpya': '../ACMLab_DATA',
+    'ppmi': '../benchmark_fmri/data/PPMI',
+    'abide': '../benchmark_fmri/data/ABIDE',
+    'neurocon': '../ACMLab_DATA/All_Dataset/neurocon/neurocon',
+    'taowu': '../ACMLab_DATA/All_Dataset/taowu/taowu',
+    'sz-diana': '../data/SZ_data_Schezophrannia_Diana_Jefferies',
 }
 DATANAME = {
     'adni': 'ADNI_BOLD_SC',

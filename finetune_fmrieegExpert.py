@@ -186,40 +186,10 @@ def main():
         classif_experts.eval()
         for expert in classif_experts.experts:
             experts.append(expert)
-    # expert_param = []
-    # if not args.nofreeze_expert:
-    #     classif_experts.eval()
-    # else:
-    #     classif_experts.train()
-        # for expert in classif_experts.experts:
-        #     expert_param.extend(list(expert.parameters()))
 
-    # config_path = '/ram/USERS/ziquanw/BrainMass/config/normal_sch1.yaml'
-    # config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
-    # feature_size = config['network']['feature_dim']
-    # depth = config['network']['depth']
-    # heads = config['network']['heads']
-    # dim_feedforward = config['network']['dim_feedforward']
-    # roi_num = config['network']['roi_num']
-    # mask_way=config['data']['mask_way']
-    # mask_len=int(config['data']['time_mask'])
-    # time_len=int(config['data']['time_len'])
-    # weight_dir = '/ram/USERS/ziquanw/BrainMass/checkpoints/checkpoints_brainmoe_170kdataset_AAL_116'
-    # expert_fns = [fn for fn in list(os.listdir(weight_dir)) if fn.endswith('best_model.pth')]
-    # expert_fns = [fn for fn in expert_fns if '_'.join(fn.split('_')[-4:-2]) in args.expert_atlas]
-    # if args.single_expert: expert_fns = [fn for fn in expert_fns if 'task-rest_AAL_116' in fn]
-    # assert len(expert_fns) > 0
-    # expert_tags.extend(['BrainMass_'+fn.replace('brainExpert_', '').replace('_best_model.pth', '') for fn in expert_fns])
-    # weight_path = [f'{weight_dir}/{fn}' for fn in expert_fns]
-    # for chpt_path in weight_path:
-    #     expert = BrainMass_expert(feature_size,depth,heads,dim_feedforward,roi_num).to(device)
-    #     load_params = torch.load(chpt_path, map_location='cpu')['online_network_state_dict']
-    #     expert.load_state_dict(load_params)
-    #     expert.eval()
-    #     experts.append(expert)
 
     if not args.noeeg:
-        chpt_path = '/ram/USERS/ziquanw/CBraMod/pretrained_weights/pretrained_weights.pth'
+        chpt_path = '../CBraMod/pretrained_weights/pretrained_weights.pth' # download from https://github.com/wjq-learning/CBraMod
         expert = CBraMod()
         msg = expert.load_state_dict(torch.load(chpt_path, map_location='cpu'))
         expert.proj_out = Rearrange('b c s p -> b (c s p)')

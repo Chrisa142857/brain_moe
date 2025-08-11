@@ -11,13 +11,13 @@ BOLD_FORMAT = ['.csv', '.csv', '.tsv', '.csv', '.tsv', '.tsv', '.tsv', '.txt']
 DATAROOT = {
     'adni': '../detour_hcp/data',
     # 'oasis': '../detour_hcp/data',
-    'hcpa': '../ACMLab_DATA',
+    'hcpa': '../Lab_DATA',
     'ukb': '../data',
-    'hcpya': '../ACMLab_DATA',
+    'hcpya': '../Lab_DATA',
     'ppmi': '../benchmark_fmri/data/PPMI',
     'abide': '../benchmark_fmri/data/ABIDE',
-    'neurocon': '../ACMLab_DATA/All_Dataset/neurocon/neurocon',
-    'taowu': '../ACMLab_DATA/All_Dataset/taowu/taowu',
+    'neurocon': '../Lab_DATA/All_Dataset/neurocon/neurocon',
+    'taowu': '../Lab_DATA/All_Dataset/taowu/taowu',
     'sz-diana': '../data/SZ_data_Schezophrannia_Diana_Jefferies',
 }
 DATANAME = {

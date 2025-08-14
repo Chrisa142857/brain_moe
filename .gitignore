@@ -2,6 +2,7 @@
 *.png
 *.jpg
 *.svg
+*.md
 nohup.out
 model_weights/
 data/
